@@ -24,15 +24,21 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV DATABASE_URL="file:./data/data.db"
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-RUN mkdir -p ./public ./prisma ./node_modules/.prisma ./node_modules/@prisma
+RUN mkdir -p ./public ./prisma ./data ./node_modules/.prisma ./node_modules/@prisma \
+  && chown -R nextjs:nodejs ./data
+
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma/seed.js ./prisma/seed.js
+COPY --from=builder /app/startup.sh ./startup.sh
+RUN chmod +x ./startup.sh
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
@@ -40,4 +46,7 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss 2>/dev/null; node server.js"]
+VOLUME ["/app/data"]
+
+# Startup script handles: init DB on first run + seed demo data + start server
+CMD ["./startup.sh"]
