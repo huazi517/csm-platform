@@ -1,27 +1,30 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const path = require('path');
+const fs = require('fs');
 
 const prisma = new PrismaClient();
 
 async function main() {
+  // Check if already seeded
+  const userCount = await prisma.user.count();
+  if (userCount > 0) {
+    console.log('Database already has data, skipping seed');
+    return;
+  }
+
+  console.log('Initializing database with demo data...');
+
   const hash = await bcrypt.hash('demo123456', 10);
 
-  // 创建演示用户
-  const user1 = await prisma.user.upsert({
-    where: { email: 'demo@tinet.com' },
-    update: {},
-    create: { name: '东家', email: 'demo@tinet.com', password: hash, role: 'admin' }
+  const user1 = await prisma.user.create({
+    data: { name: '东家', email: 'demo@tinet.com', password: hash, role: 'admin' }
   });
 
-  const user2 = await prisma.user.upsert({
-    where: { email: 'colleague@tinet.com' },
-    update: {},
-    create: { name: '张经理', email: 'colleague@tinet.com', password: hash, role: 'manager' }
+  const user2 = await prisma.user.create({
+    data: { name: '张经理', email: 'colleague@tinet.com', password: hash, role: 'manager' }
   });
 
-  const now = new Date();
-
-  // user1 的客户
   const customers1 = await Promise.all([
     prisma.customer.create({
       data: {
@@ -70,7 +73,6 @@ async function main() {
     })
   ]);
 
-  // 跟进计划
   await Promise.all([
     prisma.followUp.create({
       data: { userId: user1.id, customerId: customers1[0].id, date: new Date('2026-09-15'), type: '续约', note: '预约续约面谈，准备新方案', status: 'pending' }
@@ -86,7 +88,6 @@ async function main() {
     })
   ]);
 
-  // user2 的客户
   await prisma.customer.create({
     data: {
       userId: user2.id, name: '广州天河商贸有限公司', contact: '赵经理', phone: '13100001111',
@@ -97,9 +98,10 @@ async function main() {
     }
   });
 
-  console.log('Seed data created successfully');
+  console.log('Seed data created successfully!');
+  console.log('Demo accounts: demo@tinet.com / colleague@tinet.com (password: demo123456)');
 }
 
 main()
-  .catch(console.error)
+  .catch(e => { console.error('Seed error:', e); process.exit(1); })
   .finally(() => prisma.$disconnect());
