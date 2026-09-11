@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户（客户经理）
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("manager") // manager | admin
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customers  Customer[]
+  followUps  FollowUp[]
+}
+
+// 客户
+model Customer {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name            String
+  contact         String?
+  phone           String?
+  email           String?
+  company         String?
+
+  // 合同信息
+  planType        String?  // 基础版/标准版/专业版/企业版
+  contractStart   DateTime?
+  contractEnd     DateTime?
+  autoRenew       Boolean  @default(false)
+
+  // 账户信息
+  balance         Float    @default(0)
+  alertThreshold  Float    @default(500)
+
+  // 客户状态
+  status          String   @default("active") // active | trial | churned
+  health          String   @default("healthy") // healthy | attention | risk | churned
+  notes           String?
+
+  // BOSS 系统对接
+  bossCustomerId  String?
+
+  // 同步信息
+  lastSyncTime    DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  followUps       FollowUp[]
+
+  @@index([userId])
+  @@index([contractEnd])
+  @@index([status])
+}
+
+// 跟进计划
+model FollowUp {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  date        DateTime
+  type        String   // 回访/续约/充值/培训/投诉处理
+  note        String?
+  status      String   @default("pending") // pending | done | cancelled
+  completedAt DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([customerId])
+  @@index([status])
+}
